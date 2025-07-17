@@ -953,6 +953,13 @@ class XAxisTrack(GenomeTrack):
         ax.text(0.5, label_y_pos, chrom_region, horizontalalignment='center',
                 fontsize=self.properties['fontsize'],
                 verticalalignment=vert_align, transform=ax.transAxes)
+        
+        # align outermost xticklabels correctly
+        # does not really work, don't know why but leaving it here anyway
+        ticklabels = ax.get_xmajorticklabels()
+        # set the alignment for outer ticklabels
+        ticklabels[0].set_ha("left")
+        ticklabels[-1].set_ha("right")
 
     def plot_y_axis(self, ax, plot_ax):
         pass
