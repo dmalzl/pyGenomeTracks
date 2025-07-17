@@ -20,6 +20,9 @@ lib
 lib64
 .cache
 
+# testdata
+data/
+
 # Installer logs
 pip-log.txt
 

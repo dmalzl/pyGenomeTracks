@@ -31,15 +31,19 @@ file_type = {TRACK_TYPE}
         continue_plotting, chrom_region = self.check_before_plotting(chrom_region, region_start, region_end)
         if not continue_plotting:
             return
+        
+        # get rid of this because we actually want the cut for multi region trans contacts
         # expand region to plus depth on both sides
         # to avoid a 45 degree 'cut' on the edges
 
         # get bin id of start and end of region in given chromosome
-        chr_start_id, chr_end_id = self.hic_ma.getChrBinRange(chrom_region)
-        chr_start = self.hic_ma.cut_intervals[chr_start_id][1]
-        chr_end = self.hic_ma.cut_intervals[chr_end_id - 1][2]
-        start_bp = max(chr_start, region_start - self.properties['depth'])
-        end_bp = min(chr_end, region_end + self.properties['depth'])
+        # chr_start_id, chr_end_id = self.hic_ma.getChrBinRange(chrom_region)
+        # chr_start = self.hic_ma.cut_intervals[chr_start_id][1]
+        # chr_end = self.hic_ma.cut_intervals[chr_end_id - 1][2]
+        # start_bp = max(chr_start, region_start - self.properties['depth'])
+        # end_bp = min(chr_end, region_end + self.properties['depth'])
+        start_bp = region_start
+        end_bp = region_end
         idx = [idx for idx, x in enumerate(self.hic_ma.cut_intervals)
                if x[0] == chrom_region and x[1] >= start_bp and x[2] <= end_bp]
         if len(idx) == 0:
