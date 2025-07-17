@@ -144,7 +144,7 @@ file_type = {TRACK_TYPE}
                                  " It will be set as 'transformed'.\n")
                 self.properties['y_axis_values'] = 'transformed'
 
-    def plot(self, ax, chrom_region, start_region, end_region):
+    def plot(self, ax, chrom_region, start_region, end_region, only_return_scores = False):
 
         temp_end_region, temp_nbins, scores_per_bin = self.get_scores('self.bw', self.properties['file'],
                                                                       chrom_region, start_region, end_region)
@@ -204,17 +204,21 @@ file_type = {TRACK_TYPE}
                                        self.properties['transform'],
                                        self.properties['log_pseudocount'],
                                        self.properties['file'])
+        
+        if not only_return_scores:
+            plot_coverage(ax, x_values, transformed_scores, self.plot_type,
+                        self.size,
+                        self.properties['color'],
+                        self.properties['negative_color'],
+                        self.properties['alpha'],
+                        self.properties['grid'])
 
-        plot_coverage(ax, x_values, transformed_scores, self.plot_type,
-                      self.size,
-                      self.properties['color'],
-                      self.properties['negative_color'],
-                      self.properties['alpha'],
-                      self.properties['grid'])
+            self.adjust_ylim(ax)
 
-        self.adjust_ylim(ax)
-
-        return ax
+            return ax
+        
+        else:
+            return transformed_scores
 
     def plot_y_axis(self, ax, plot_axis):
         super(BigWigTrack, self).plot_y_axis(ax, plot_axis,

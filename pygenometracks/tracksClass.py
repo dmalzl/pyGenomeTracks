@@ -16,7 +16,7 @@ import mpl_toolkits.axisartist as axisartist
 from . utilities import file_to_intervaltree, change_chrom_names, MyBasePairFormatter, get_region
 from collections import OrderedDict
 from pygenometracks.tracks.GenomeTrack import GenomeTrack
-from pygenometracks.utilities import InputError
+from pygenometracks.utilities import InputError, transform
 
 import warnings
 
@@ -322,9 +322,11 @@ class PlotTracks(object):
         # the track label width is the fraction of
         # the figure width that is used
         # for the track 'title' or label.
-        self.width_ratios = (0.01,
-                             1 - track_label_width,
-                             track_label_width)
+        self.width_ratios = (
+            [0.01,] + 
+            [1 - track_label_width / len(plot_regions),] * len(plot_regions) + 
+            [track_label_width,]
+        )
 
         # Process the width:
         if plot_width is not None:
@@ -380,7 +382,7 @@ class PlotTracks(object):
                     work.append(child)
         return avail_types
 
-    def get_tracks_height(self, start_region=None, end_region=None):
+    def get_tracks_height(self, regions):
         """
         The main purpose of the following loop is
         to get the height of each of the tracks
@@ -399,81 +401,86 @@ class PlotTracks(object):
         """
         track_height = []
         for i, track_dict in enumerate(self.track_list):
-            if i == 0 and track_dict['overlay_previous'] != 'no':
-                log.warning("First track can not have the `overlay_previous` option.\n")
-                self.track_list[i]['overlay_previous'] = 'no'
-            # if overlay_previous is set to a value other than no
-            # then, skip this track height
-            if track_dict['overlay_previous'] != 'no':
-                continue
-            elif 'height' in track_dict:
-                height = track_dict['height']
-            elif track_dict['file_type'] == 'x_axis':
-                height = track_dict['fontsize'] / 8
-            elif ('depth' in track_dict
-                  and track_dict['file_type'] == 'hic_matrix') or \
-                    track_dict['file_type'] == 'hic_matrix_square':
-                # compute the height of a Hi-C track
-                # based on the depth such that the
-                # resulting plot appears proportional
-                # For hic_matrix:
-                #
-                #      /|\
-                #     / | \
-                #    /  |d \   d is the depth that we want to be proportional
-                #   /   |   \  when plotted in the figure
-                # ------------------
-                #   region len
-                #
-                # d (in cm) =  depth (in bp) * 0.5 *
-                #              width (in cm) / region len (in bp)
-                # For hic_matrix_square:
-                # d (in cm) = length of region2 (in bp) *
-                #              width (in cm) / region len (in bp)
-                #
-                # to compute the actual width of the figure the margins
-                # and the region
-                # set for the legends have to be considered
-                # DEFAULT_MARGINS['right'] - DEFAULT_MARGINS['left']
-                # is the proportion of plotting area
-                # This plotting area is divided in three part as specified in
-                # self.width_ratios (normalized to 1)
-                # And as wspace is specified 0.01,
-                # 0.01 of the mean of the 3 regions is not occupied.
-                # 1 / (1 + 2 / 3 * 0.01) is used to plot.
+            max_height = 0
+            for _, start_region, end_region in regions:
+                if i == 0 and track_dict['overlay_previous'] != 'no':
+                    log.warning("First track can not have the `overlay_previous` option.\n")
+                    self.track_list[i]['overlay_previous'] = 'no'
+                # if overlay_previous is set to a value other than no
+                # then, skip this track height
+                if track_dict['overlay_previous'] != 'no':
+                    continue
+                elif 'height' in track_dict:
+                    height = track_dict['height']
+                elif track_dict['file_type'] == 'x_axis':
+                    height = track_dict['fontsize'] / 8
+                elif ('depth' in track_dict
+                    and track_dict['file_type'] == 'hic_matrix') or \
+                        track_dict['file_type'] == 'hic_matrix_square':
+                    # compute the height of a Hi-C track
+                    # based on the depth such that the
+                    # resulting plot appears proportional
+                    # For hic_matrix:
+                    #
+                    #      /|\
+                    #     / | \
+                    #    /  |d \   d is the depth that we want to be proportional
+                    #   /   |   \  when plotted in the figure
+                    # ------------------
+                    #   region len
+                    #
+                    # d (in cm) =  depth (in bp) * 0.5 *
+                    #              width (in cm) / region len (in bp)
+                    # For hic_matrix_square:
+                    # d (in cm) = length of region2 (in bp) *
+                    #              width (in cm) / region len (in bp)
+                    #
+                    # to compute the actual width of the figure the margins
+                    # and the region
+                    # set for the legends have to be considered
+                    # DEFAULT_MARGINS['right'] - DEFAULT_MARGINS['left']
+                    # is the proportion of plotting area
+                    # This plotting area is divided in three part as specified in
+                    # self.width_ratios (normalized to 1)
+                    # And as wspace is specified 0.01,
+                    # 0.01 of the mean of the 3 regions is not occupied.
+                    # 1 / (1 + 2 / 3 * 0.01) is used to plot.
 
-                hic_width = \
-                    self.fig_width * \
-                    (DEFAULT_MARGINS['right'] - DEFAULT_MARGINS['left']) / \
-                    (1 + 2 / 3 * 0.01) * \
-                    self.width_ratios[1] / sum(self.width_ratios)
-                # the scale factor is to obtain each bin as a square
-                # (a 45 degree rotated matrix)
-                if track_dict['file_type'] == 'hic_matrix':
-                    scale_factor = 0.5
-                    depth = min(track_dict['depth'],
-                                int((end_region - start_region) * 1.25))
-                elif track_dict['file_type'] == 'hic_matrix_square':
-                    scale_factor = 1  # No rotation
-                    if track_dict['region2'] is None:
-                        depth = end_region - start_region
-                    else:
-                        region2 = get_region(track_dict['region2'])
-                        depth = region2[2] - region2[1]
-                height = scale_factor * depth * hic_width / \
-                    (end_region - start_region)
-            else:
-                height = DEFAULT_TRACK_HEIGHT
-                self.track_list[i]['height'] = height
+                    hic_width = \
+                        self.fig_width * \
+                        (DEFAULT_MARGINS['right'] - DEFAULT_MARGINS['left']) / \
+                        (1 + 2 / 3 * 0.01) * \
+                        self.width_ratios[1] / sum(self.width_ratios)
+                    # the scale factor is to obtain each bin as a square
+                    # (a 45 degree rotated matrix)
+                    if track_dict['file_type'] == 'hic_matrix':
+                        scale_factor = 0.5
+                        depth = min(track_dict['depth'],
+                                    int((end_region - start_region) * 1.25))
+                    elif track_dict['file_type'] == 'hic_matrix_square':
+                        scale_factor = 1  # No rotation
+                        if track_dict['region2'] is None:
+                            depth = end_region - start_region
+                        else:
+                            region2 = get_region(track_dict['region2'])
+                            depth = region2[2] - region2[1]
+                    height = scale_factor * depth * hic_width / \
+                        (end_region - start_region)
+                else:
+                    height = DEFAULT_TRACK_HEIGHT
+                    self.track_list[i]['height'] = height
 
-            track_height.append(height)
+                if height > max_height:
+                    max_height = height
+
+            track_height.append(max_height)
 
         return track_height
 
-    def plot(self, file_name, chrom, start, end, title=None,
+    def plot(self, file_name, plot_regions, title=None,
              h_align_titles='left', decreasing_x_axis=False):
-        track_height = self.get_tracks_height(start_region=start,
-                                              end_region=end)
+        
+        track_height = self.get_tracks_height(plot_regions)
 
         if self.fig_height:
             fig_height = self.fig_height
@@ -494,59 +501,99 @@ class PlotTracks(object):
         if title:
             fig.suptitle(title)
 
-        grids = matplotlib.gridspec.GridSpec(len(track_height), 3,
+        grids = matplotlib.gridspec.GridSpec(len(track_height), 
+                                             2 + len(plot_regions),
                                              height_ratios=track_height,
                                              width_ratios=self.width_ratios,
                                              wspace=0.01)
+        
         axis_list = []
         # skipped_tracks is the count of tracks that have the
         # 'overlay_previous' parameter and should be skipped
         skipped_tracks = 0
-        plot_axis = None
-        for idx, track in enumerate(self.track_obj_list):
-            log.info(f"plotting {track.properties['section_name']}")
+        plot_axes = list()
 
+        def get_max_region_ylim(track, plot_regions):
+            # setting min_score to zero so we only get it changed when scores are negative
+            # e.g. with hic eigenvectors etc.
+            min_score, max_score = 0, 0
+            for chrom, start, end in plot_regions:
+                scores = track.plot(None, chrom, start, end, only_return_scores = True)
+                max_val, min_val = scores.max(), scores.min()
+
+                if max_val > max_score:
+                    max_score = max_val
+
+                if min_val < min_score:
+                    min_score = min_val
+
+            return min_score, max_score
+
+        for idx, track in enumerate(self.track_obj_list):
             if track.properties['overlay_previous'] in ['yes', 'share-y']:
                 overlay = True
                 skipped_tracks += 1
             else:
+                plot_axes = list()
                 overlay = False
+ 
+            # set min and max of track to ensure same y-axis
+            if track.properties['file_type'] in ['bigwig', 'bedgraph']:
+                track_min, track_max = get_max_region_ylim(track, plot_regions)
 
-            if track.properties['overlay_previous'] == 'share-y':
-                ylim = plot_axis.get_ylim()
-            else:
-                idx -= skipped_tracks
-                plot_axis = axisartist.Subplot(fig, grids[idx, 1])
-                fig.add_subplot(plot_axis)
-                # turns off the lines around the tracks
-                plot_axis.axis[:].set_visible(False)
-                # to make the background transparent
-                plot_axis.patch.set_visible(False)
-                if not overlay:
-                    y_axis = plt.subplot(grids[idx, 0])
-                    y_axis.set_axis_off()
+                property_min = track.properties.get('min_value', None)
+                property_max = track.properties.get('max_value', None)
 
-                    label_axis = plt.subplot(grids[idx, 2])
-                    label_axis.set_axis_off()
-                    # I get the width of the label_axis to be able to wrap the
-                    # labels when right or center aligned.
-                    width_inch = label_axis.get_window_extent().width
-                    width_dpi = width_inch * self.dpi / fig.dpi
+                if not property_min:
+                    track.properties['min_value'] = track_min
 
-            if decreasing_x_axis:
-                plot_axis.set_xlim(end, start)
-            else:
-                plot_axis.set_xlim(start, end)
-            track.plot(plot_axis, chrom, start, end)
-            track.plot_y_axis(y_axis, plot_axis)
-            track.plot_label(label_axis, width_dpi=width_dpi,
-                             h_align=h_align_titles)
+                if not property_max:
+                    track.properties['max_value'] = track_max
 
-            if track.properties['overlay_previous'] == 'share-y':
-                plot_axis.set_ylim(ylim)
+            for i, (chrom, start, end) in enumerate(plot_regions):
+                log.info(f"plotting {chrom}:{start}-{end} for {track.properties['section_name']}")
+
+                if track.properties['overlay_previous'] == 'share-y':
+                    ylim = plot_axes[1 + i].get_ylim()
+
+                else:
+                    idx -= skipped_tracks
+                    plot_axis = axisartist.Subplot(fig, grids[idx, 1 + i])
+                    plot_axes.append(plot_axis)
+                    fig.add_subplot(plot_axis)
+                    # turns off the lines around the tracks
+                    plot_axis.axis[:].set_visible(False)
+                    # to make the background transparent
+                    plot_axis.patch.set_visible(False)
+
+                if decreasing_x_axis:
+                    plot_axis.set_xlim(end, start)
+                else:
+                    plot_axis.set_xlim(start, end)
+
+                track.plot(plot_axis, chrom, start, end)
+
+                if track.properties['overlay_previous'] == 'share-y':
+                    plot_axis.set_ylim(ylim)
 
             if not overlay:
-                axis_list.append(plot_axis)
+                y_axis = plt.subplot(grids[idx, 0])
+                y_axis.set_axis_off()
+
+                label_axis = plt.subplot(grids[idx, -1])
+                label_axis.set_axis_off()
+                # I get the width of the label_axis to be able to wrap the
+                # labels when right or center aligned.
+                width_inch = label_axis.get_window_extent().width
+                width_dpi = width_inch * self.dpi / fig.dpi
+
+            track.plot_y_axis(y_axis, plot_axis)
+            
+            track.plot_label(label_axis, width_dpi=width_dpi,
+                            h_align=h_align_titles)
+
+            if not overlay:
+                axis_list.append(plot_axes)
 
         for current_type in self.type_obj_list:
             current_type.plot(axis_list, fig, chrom, start, end)

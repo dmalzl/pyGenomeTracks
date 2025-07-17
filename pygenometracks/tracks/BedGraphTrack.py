@@ -299,7 +299,7 @@ file_type = {TRACK_TYPE}
 
         return score_list, pos_list
 
-    def plot(self, ax, chrom_region, start_region, end_region):
+    def plot(self, ax, chrom_region, start_region, end_region, only_return_scores = False):
         score_list, pos_list = self.get_scores(chrom_region, start_region, end_region)
         if pos_list == []:
             self.adjust_ylim(ax)
@@ -427,18 +427,21 @@ file_type = {TRACK_TYPE}
                                        self.properties['transform'],
                                        self.properties['log_pseudocount'],
                                        self.properties['file'])
+        if not only_return_scores:
+            plot_coverage(ax, x_values, transformed_scores, self.plot_type,
+                        self.size,
+                        self.properties['color'],
+                        self.properties['negative_color'],
+                        self.properties['alpha'],
+                        self.properties['grid'])
 
-        plot_coverage(ax, x_values, transformed_scores, self.plot_type,
-                      self.size,
-                      self.properties['color'],
-                      self.properties['negative_color'],
-                      self.properties['alpha'],
-                      self.properties['grid'])
+            self.adjust_ylim(ax)
 
-        self.adjust_ylim(ax)
+            if self.properties['rasterize']:
+                ax.set_rasterized(True)
 
-        if self.properties['rasterize']:
-            ax.set_rasterized(True)
+        else:
+            return transformed_scores
 
     def get_values_as_bigwig(self, score_list, pos_list, chrom_region,
                              start_region, end_region):

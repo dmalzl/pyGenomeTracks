@@ -282,24 +282,9 @@ def main(args=None):
     os.makedirs(os.path.dirname(os.path.abspath(args.outFileName)), exist_ok=True)
 
     # Plot them
-    if args.BED:
-        name = args.outFileName.split(".")
-        file_suffix = name[-1]
-        file_prefix = ".".join(name[:-1])
-        for chrom, start, end in regions:
-            file_name = f"{file_prefix}_{chrom}-{start}-{end}.{file_suffix}"
-            if end - start < 200000:
-                warnings.warn("A region shorter than 200kb has been "
-                              "detected! This can be too small to return "
-                              "a proper TAD plot!\n")
-            sys.stderr.write(f"saving {file_name}\n")
-            current_fig = trp.plot(file_name, chrom, start, end, title=args.title,
-                                   h_align_titles=args.trackLabelHAlign,
-                                   decreasing_x_axis=args.decreasingXAxis)
-            plt.close(current_fig)
-    else:
-        current_fig = trp.plot(args.outFileName, *regions[0], title=args.title,
-                               h_align_titles=args.trackLabelHAlign,
-                               decreasing_x_axis=args.decreasingXAxis)
-        plt.close(current_fig)
+    current_fig = trp.plot(args.outFileName, regions, title=args.title,
+                            h_align_titles=args.trackLabelHAlign,
+                            decreasing_x_axis=args.decreasingXAxis)
+    
+    plt.close(current_fig)
     trp.close_files()
