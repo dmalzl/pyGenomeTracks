@@ -523,7 +523,7 @@ class PlotTracks(object):
             min_score, max_score = 0, 0
             for chrom, start, end in plot_regions:
                 scores = track.plot(None, chrom, start, end, only_return_scores = True)
-                max_val, min_val = scores.max(), scores.min()
+                max_val, min_val = np.nanmax(scores), np.nanmin(scores)
 
                 if max_val > max_score:
                     max_score = max_val
@@ -559,6 +559,7 @@ class PlotTracks(object):
             # set min and max of track to ensure same y-axis
             if track.properties['file_type'] in ['bigwig', 'bedgraph']:
                 track_min, track_max = get_max_region_ylim(track, plot_regions)
+                print(track_min, track_max)
 
                 property_min = track.properties.get('min_value', None)
                 property_max = track.properties.get('max_value', None)
