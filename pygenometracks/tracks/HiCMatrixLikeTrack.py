@@ -53,7 +53,8 @@ show_masked_bins = false
                            'max_value': None,
                            'min_value': None,
                            'rasterize': True,
-                           'colormap': DEFAULT_MATRIX_COLORMAP}
+                           'colormap': DEFAULT_MATRIX_COLORMAP,
+                           'divisive_weights': False}
     NECESSARY_PROPERTIES = ['file']
     SYNONYMOUS_PROPERTIES = {'max_value': {'auto': None},
                              'min_value': {'auto': None}}
@@ -62,7 +63,7 @@ show_masked_bins = false
     BOOLEAN_PROPERTIES = ['show_masked_bins', 'rasterize']
     STRING_PROPERTIES = ['file', 'file_type', 'overlay_previous',
                          'orientation', 'transform',
-                         'title', 'colormap']
+                         'title', 'colormap', 'weight_name']
     FLOAT_PROPERTIES = {'max_value': [- np.inf, np.inf],
                         'min_value': [- np.inf, np.inf],
                         'scale_factor': [- np.inf, np.inf],
@@ -108,6 +109,8 @@ show_masked_bins = false
         try:
             self.hic_ma = HiCMatrix.hiCMatrix(self.properties['file'],
                                               pChrnameList=region)
+            
+
         except ValueError as ve:
             if region is not None:
                 if "Unknown sequence label" in str(ve):
@@ -206,8 +209,7 @@ show_masked_bins = false
         # (this is done by subtracting a second sparse matrix
         # that contains only the lower matrix that wants to be removed.
         limit = 2 * max_depth_in_bins
-        self.hic_ma.matrix = scipy.sparse.triu(self.hic_ma.matrix, k=0, format='csr') - \
-            scipy.sparse.triu(self.hic_ma.matrix, k=limit, format='csr')
+        self.hic_ma.matrix = scipy.sparse.triu(self.hic_ma.matrix, k=0, format='csr')
         self.hic_ma.matrix.eliminate_zeros()
 
         # fill the main diagonal, otherwise it looks

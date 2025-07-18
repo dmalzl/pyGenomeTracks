@@ -1,7 +1,7 @@
 import scipy.sparse
 from matplotlib import colors
 import numpy as np
-from . HiCMatrixLikeTrack import HiCMatrixLikeTrack
+from .CoolerLikeTrack import CoolerLikeTrack
 import logging
 import itertools
 
@@ -10,10 +10,10 @@ logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 
-class HiCMatrixTrack(HiCMatrixLikeTrack):
-    SUPPORTED_ENDINGS = ['.h5']
-    TRACK_TYPE = 'hic_matrix'
-    OPTIONS_TXT = HiCMatrixLikeTrack.OPTIONS_TXT + f"""
+class CoolerTrack(CoolerLikeTrack):
+    SUPPORTED_ENDINGS = ['.cool', '.mcool']
+    TRACK_TYPE = 'cool_matrix'
+    OPTIONS_TXT = CoolerLikeTrack.OPTIONS_TXT + f"""
 # depth is the maximum distance that should be plotted.
 # If it is more than 125% of the plotted region, it will
 # be adjsted to this maximum value.
@@ -21,9 +21,9 @@ depth = 100000
 file_type = {TRACK_TYPE}
     """
     DEFAULTS_PROPERTIES = dict({'depth': 100000},
-                               **HiCMatrixLikeTrack.DEFAULTS_PROPERTIES)
+                               **CoolerLikeTrack.DEFAULTS_PROPERTIES)
     INTEGER_PROPERTIES = dict({'depth': [1, np.inf]},
-                              **HiCMatrixLikeTrack.INTEGER_PROPERTIES)
+                              **CoolerLikeTrack.INTEGER_PROPERTIES)
     
     SPACERBINWIDTH = 0.5
     # The colormap can only be a colormap
@@ -31,7 +31,7 @@ file_type = {TRACK_TYPE}
     # spacer bins need to be adjusted by binsize
     def init_view_matrix(self, plot_regions):
         nbins = 0
-        binsize = self.hic_ma.getBinSize()
+        binsize = self.clr.binsize
         for _, start, end in plot_regions:
             nbins += (end - start) // binsize
 
@@ -46,18 +46,15 @@ file_type = {TRACK_TYPE}
         view_idx = 0
         depth_in_bp = 0
         start_pos_vec = []
-        hic_mat_idx = []
+        clr_extents = []
         for nspacer, (chrom_region, region_start, region_end) in enumerate(plot_regions):
             continue_plotting, chrom_region = self.check_before_plotting(chrom_region, region_start, region_end)
             if not continue_plotting:
                 raise Exception('problems with input data. please check logs')
             
-            start_bp = region_start
-            end_bp = region_end
-            idx = [idx for idx, x in enumerate(self.hic_ma.cut_intervals)
-                if x[0] == chrom_region and x[1] >= start_bp and x[2] <= end_bp]
-            
-            if len(idx) == 0:
+            ext_lo, ext_hi = self.clr.extent((chrom_region, region_start, region_end))
+            extent = ext_hi - ext_lo
+            if extent < 1:
                 self.log.warning("*Warning*\nThere is no data for the region "
                                 "considered on the matrix. "
                                 "This will generate an empty track!!\n")
@@ -67,13 +64,13 @@ file_type = {TRACK_TYPE}
             depth_in_bp += region_end - region_start
             # select only relevant matrix part
             view_start = view_idx
-            view_end = view_idx + len(idx)
+            view_end = view_idx + extent
 
-            cis_matrix = np.array(
-                self.hic_ma.matrix[idx, :][:, idx]
-                .todense()
-                .astype(float)
+            matrix_selector = self.clr.matrix(
+                balance = self.properties['weight_name'],
+                divisive_weights = self.properties['divisive_weights']
             )
+            cis_matrix = matrix_selector[ext_lo: ext_hi, ext_lo: ext_hi]
             # add one bin as spacer
             lo = view_start + nspacer
             hi = view_end + nspacer
@@ -84,25 +81,22 @@ file_type = {TRACK_TYPE}
                 # iterating backwards to comply with view_idx
                 tmp_view_start = view_start
                 tmp_nspacer = nspacer
-                for trans_idx in hic_mat_idx[::-1]:
-                    trans_matrix = np.array(
-                        self.hic_ma.matrix[trans_idx, :][:, idx]
-                        .todense()
-                        .astype(float)
-                    )
+                for trans_ext_lo, trans_ext_hi in clr_extents[::-1]:
+                    trans_extent = trans_ext_hi- trans_ext_lo
+                    trans_matrix = matrix_selector[trans_ext_lo: trans_ext_hi, ext_lo: ext_hi]
                     # this is relative to the previous iteration
                     # in which view_start = view_end at the end of the iteration
-                    trans_lo = tmp_view_start - len(trans_idx) + tmp_nspacer - 1
+                    trans_lo = tmp_view_start - trans_extent + tmp_nspacer - 1
                     trans_hi = tmp_view_start + tmp_nspacer - 1
                     tmp_nspacer -= 1
                     view_matrix[trans_lo: trans_hi, lo: hi] = trans_matrix
 
-                    tmp_view_start = tmp_view_start - len(trans_idx)
+                    tmp_view_start = tmp_view_start - trans_extent
 
             view_idx = view_end
-            hic_mat_idx.append(idx)
+            clr_extents.append((ext_lo, ext_hi))
 
-        depth = depth_in_bp // self.hic_ma.getBinSize() + (len(plot_regions) - 2) * np.sqrt(self.SPACERBINWIDTH**2 * 2)
+        depth = depth_in_bp // self.clr.binsize + (len(plot_regions) - 2) * np.sqrt(self.SPACERBINWIDTH**2 * 2)
         return view_matrix, depth, start_pos_vec
 
     def plot(self, ax, plot_regions):
@@ -116,7 +110,6 @@ file_type = {TRACK_TYPE}
         # chr_end = self.hic_ma.cut_intervals[chr_end_id - 1][2]
         # start_bp = max(chr_start, region_start - self.properties['depth'])
         # end_bp = min(chr_end, region_end + self.properties['depth'])
-
         matrix, depth, start_pos_vec = self.get_view_matrix(plot_regions)
 
         matrix = matrix * self.properties['scale_factor']
@@ -142,7 +135,7 @@ file_type = {TRACK_TYPE}
         else:
             # try to use a 'aesthetically pleasant' max value
             try:
-                vmax = np.nanpercentile(matrix.diagonal(1), 80)
+                vmax = np.nanpercentile(matrix.diagonal(1), 70)
             except Exception:
                 vmax = None
 
@@ -162,7 +155,7 @@ file_type = {TRACK_TYPE}
             #     if len(distant_diagonal_values) > 5:
             #         break
 
-            vmin = np.nanpercentile(matrix, 20)
+            vmin = np.nanpercentile(matrix, 10)
 
         self.log.info("setting min, max values for track "
                       f"{self.properties['section_name']} to: "

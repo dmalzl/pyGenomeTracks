@@ -413,8 +413,7 @@ class PlotTracks(object):
             elif track_dict['file_type'] == 'x_axis':
                 height = track_dict['fontsize'] / 8
             elif ('depth' in track_dict
-                and track_dict['file_type'] == 'hic_matrix') or \
-                    track_dict['file_type'] == 'hic_matrix_square':
+                and track_dict['file_type'] in ['hic_matrix', 'hic_matrix_square', 'cool_matrix']):
                 # compute the height of a Hi-C track
                 # based on the depth such that the
                 # resulting plot appears proportional
@@ -451,7 +450,7 @@ class PlotTracks(object):
                     sum(self.width_ratios[1:-1]) / sum(self.width_ratios)
                 # the scale factor is to obtain each bin as a square
                 # (a 45 degree rotated matrix)
-                if track_dict['file_type'] == 'hic_matrix':
+                if track_dict['file_type'] in ['hic_matrix', 'cool_matrix']:
                     scale_factor = 0.5
                     SPACERBINWIDTH = 0.5
                     depth = sum(e - s for _, s, e in regions) + np.sqrt(SPACERBINWIDTH**2 * 2)
@@ -594,13 +593,13 @@ class PlotTracks(object):
                 
                 track.properties['gene_rows'] = max_num_rows
                 
-            if track.properties['file_type'] == 'hic_matrix' and len(plot_regions) > 1:
+            if track.properties['file_type'] in ['hic_matrix', 'cool_matrix'] and len(plot_regions) > 1:
                 log.info('plotting multi-region hic_matrix track')
                 plot_axis = axisartist.Subplot(fig, grids[idx, 1:-1])
                 fig.add_subplot(plot_axis)
                 format_axis(plot_axis)
 
-                binsize = track.hic_ma.getBinSize()
+                binsize = track.hic_ma.getBinSize() if track.properties['file_type'] == 'hic_matrix' else track.clr.binsize
                 n_region_bins = sum([end - start for _, start, end in plot_regions]) // binsize
                 hi = track.SPACERBINWIDTH * (len(plot_regions) - 1) + n_region_bins
                 set_xlim(plot_axis, 0, hi, decreasing_x_axis)
@@ -619,7 +618,7 @@ class PlotTracks(object):
                         plot_axis = make_add_and_format_ax(fig, grids, idx, 1 + i)
                         plot_axes.append(plot_axis)
 
-                    if track.properties['file_type'] == 'hic_matrix':
+                    if track.properties['file_type'] in ['hic_matrix', 'cool_matrix']:
                         binsize = track.hic_ma.getBinSize()
                         set_xlim(plot_axis, 0, (end - start) // binsize, decreasing_x_axis)
                         track.plot(plot_axis, [(chrom, start, end)])
@@ -818,7 +817,7 @@ class PlotTracks(object):
             track_options = self.check_file_exists(track_options,
                                                    tracks_file_path,
                                                    track_options.get('file_type', 'no') in
-                                                   ['hic_matrix', 'hic_matrix_square'])
+                                                   ['hic_matrix', 'hic_matrix_square', 'cool_matrix'])
             if 'file_type' in track_options:
                 # The 'overlay_previous' is initialized:
                 if 'overlay_previous' not in track_options:
