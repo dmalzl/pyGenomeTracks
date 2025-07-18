@@ -197,7 +197,7 @@ show_masked_bins = false
                            colormap_only=True, default_value_is_colormap=True)
 
         self.cmap = copy.copy(cm.get_cmap(self.properties['colormap']))
-        self.cmap.set_bad('black')
+        self.cmap.set_bad('white')
 
     def reduce_matrix(self, max_depth_in_bins):
         # work only with the lower matrix

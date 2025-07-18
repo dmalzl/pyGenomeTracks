@@ -324,7 +324,7 @@ class PlotTracks(object):
         # for the track 'title' or label.
         self.width_ratios = (
             [0.01,] + 
-            [1 - track_label_width / len(plot_regions),] * len(plot_regions) + 
+            self.get_width_ratios(1 - track_label_width, plot_regions) + 
             [track_label_width,]
         )
 
@@ -333,7 +333,7 @@ class PlotTracks(object):
             self.fig_width = plot_width \
                 / (DEFAULT_MARGINS['right'] - DEFAULT_MARGINS['left']) \
                 * (1 + 2 / 3 * 0.01) \
-                / (self.width_ratios[1] / sum(self.width_ratios))
+                / (sum(self.width_ratios[1:-1]) / sum(self.width_ratios))
 
         font = {'size': fontsize}
         matplotlib.rc('font', **font)
@@ -401,82 +401,87 @@ class PlotTracks(object):
         """
         track_height = []
         for i, track_dict in enumerate(self.track_list):
-            max_height = 0
-            for _, start_region, end_region in regions:
-                if i == 0 and track_dict['overlay_previous'] != 'no':
-                    log.warning("First track can not have the `overlay_previous` option.\n")
-                    self.track_list[i]['overlay_previous'] = 'no'
-                # if overlay_previous is set to a value other than no
-                # then, skip this track height
-                if track_dict['overlay_previous'] != 'no':
-                    continue
-                elif 'height' in track_dict:
-                    height = track_dict['height']
-                elif track_dict['file_type'] == 'x_axis':
-                    height = track_dict['fontsize'] / 8
-                elif ('depth' in track_dict
-                    and track_dict['file_type'] == 'hic_matrix') or \
-                        track_dict['file_type'] == 'hic_matrix_square':
-                    # compute the height of a Hi-C track
-                    # based on the depth such that the
-                    # resulting plot appears proportional
-                    # For hic_matrix:
-                    #
-                    #      /|\
-                    #     / | \
-                    #    /  |d \   d is the depth that we want to be proportional
-                    #   /   |   \  when plotted in the figure
-                    # ------------------
-                    #   region len
-                    #
-                    # d (in cm) =  depth (in bp) * 0.5 *
-                    #              width (in cm) / region len (in bp)
-                    # For hic_matrix_square:
-                    # d (in cm) = length of region2 (in bp) *
-                    #              width (in cm) / region len (in bp)
-                    #
-                    # to compute the actual width of the figure the margins
-                    # and the region
-                    # set for the legends have to be considered
-                    # DEFAULT_MARGINS['right'] - DEFAULT_MARGINS['left']
-                    # is the proportion of plotting area
-                    # This plotting area is divided in three part as specified in
-                    # self.width_ratios (normalized to 1)
-                    # And as wspace is specified 0.01,
-                    # 0.01 of the mean of the 3 regions is not occupied.
-                    # 1 / (1 + 2 / 3 * 0.01) is used to plot.
+            if i == 0 and track_dict['overlay_previous'] != 'no':
+                log.warning("First track can not have the `overlay_previous` option.\n")
+                self.track_list[i]['overlay_previous'] = 'no'
+            # if overlay_previous is set to a value other than no
+            # then, skip this track height
+            if track_dict['overlay_previous'] != 'no':
+                continue
+            elif 'height' in track_dict:
+                height = track_dict['height']
+            elif track_dict['file_type'] == 'x_axis':
+                height = track_dict['fontsize'] / 8
+            elif ('depth' in track_dict
+                and track_dict['file_type'] == 'hic_matrix') or \
+                    track_dict['file_type'] == 'hic_matrix_square':
+                # compute the height of a Hi-C track
+                # based on the depth such that the
+                # resulting plot appears proportional
+                # For hic_matrix:
+                #
+                #      /|\
+                #     / | \
+                #    /  |d \   d is the depth that we want to be proportional
+                #   /   |   \  when plotted in the figure
+                # ------------------
+                #   region len
+                #
+                # d (in cm) =  depth (in bp) * 0.5 *
+                #              width (in cm) / region len (in bp)
+                # For hic_matrix_square:
+                # d (in cm) = length of region2 (in bp) *
+                #              width (in cm) / region len (in bp)
+                #
+                # to compute the actual width of the figure the margins
+                # and the region
+                # set for the legends have to be considered
+                # DEFAULT_MARGINS['right'] - DEFAULT_MARGINS['left']
+                # is the proportion of plotting area
+                # This plotting area is divided in three part as specified in
+                # self.width_ratios (normalized to 1)
+                # And as wspace is specified 0.01,
+                # 0.01 of the mean of the 3 regions is not occupied.
+                # 1 / (1 + 2 / 3 * 0.01) is used to plot.
 
-                    hic_width = \
-                        self.fig_width * \
-                        (DEFAULT_MARGINS['right'] - DEFAULT_MARGINS['left']) / \
-                        (1 + 2 / 3 * 0.01) * \
-                        self.width_ratios[1] / sum(self.width_ratios)
-                    # the scale factor is to obtain each bin as a square
-                    # (a 45 degree rotated matrix)
-                    if track_dict['file_type'] == 'hic_matrix':
-                        scale_factor = 0.5
-                        depth = min(track_dict['depth'],
-                                    int((end_region - start_region) * 1.25))
-                    elif track_dict['file_type'] == 'hic_matrix_square':
-                        scale_factor = 1  # No rotation
-                        if track_dict['region2'] is None:
-                            depth = end_region - start_region
-                        else:
-                            region2 = get_region(track_dict['region2'])
-                            depth = region2[2] - region2[1]
-                    height = scale_factor * depth * hic_width / \
-                        (end_region - start_region)
-                else:
-                    height = DEFAULT_TRACK_HEIGHT
-                    self.track_list[i]['height'] = height
+                hic_width = \
+                    self.fig_width * \
+                    (DEFAULT_MARGINS['right'] - DEFAULT_MARGINS['left']) / \
+                    (1 + 2 / 3 * 0.01) * \
+                    sum(self.width_ratios[1:-1]) / sum(self.width_ratios)
+                # the scale factor is to obtain each bin as a square
+                # (a 45 degree rotated matrix)
+                if track_dict['file_type'] == 'hic_matrix':
+                    scale_factor = 0.5
+                    SPACERBINWIDTH = 0.5
+                    depth = sum(e - s for _, s, e in regions) + np.sqrt(SPACERBINWIDTH**2 * 2)
+                
+                # we don't need this for now
+                # elif track_dict['file_type'] == 'hic_matrix_square':
+                #     scale_factor = 1  # No rotation
+                #     if track_dict['region2'] is None:
+                #         depth = end_region - start_region
+                #     else:
+                #         region2 = get_region(track_dict['region2'])
+                #         depth = region2[2] - region2[1]
 
-                if height > max_height:
-                    max_height = height
+                height = scale_factor * depth * hic_width / \
+                    sum(e - s for _, s, e in regions)
+            else:
+                height = DEFAULT_TRACK_HEIGHT
+                self.track_list[i]['height'] = height
 
-            track_height.append(max_height)
+            track_height.append(height)
 
         return track_height
-
+    
+    def get_width_ratios(self, total_width, plot_regions):
+        lengths = []
+        for _, start, end in plot_regions:
+            lengths.append(end - start)
+        
+        return [total_width * length / sum(lengths) for length in lengths]
+        
     def plot(self, file_name, plot_regions, title=None,
              h_align_titles='left', decreasing_x_axis=False):
         
@@ -528,6 +533,21 @@ class PlotTracks(object):
                     min_score = min_val
 
             return min_score, max_score
+        
+
+        def set_xlim(plot_axis, lo, hi, decreasing_x_axis):
+            if decreasing_x_axis:
+                plot_axis.set_xlim(hi, lo)
+            else:
+                plot_axis.set_xlim(lo, hi)
+
+
+        def format_axis(plot_axis):
+            # turns off the lines around the tracks
+            plot_axis.axis[:].set_visible(False)
+            # to make the background transparent
+            plot_axis.patch.set_visible(False)
+
 
         for idx, track in enumerate(self.track_obj_list):
             if track.properties['overlay_previous'] in ['yes', 'share-y']:
@@ -550,31 +570,43 @@ class PlotTracks(object):
                 if not property_max:
                     track.properties['max_value'] = track_max
 
-            for i, (chrom, start, end) in enumerate(plot_regions):
-                log.info(f"plotting {chrom}:{start}-{end} for {track.properties['section_name']}")
+            if track.properties['file_type'] == 'hic_matrix' and len(plot_regions) > 1:
+                log.info('plotting multi-region hic_matrix track')
+                plot_axis = axisartist.Subplot(fig, grids[idx, 1:-1])
+                fig.add_subplot(plot_axis)
+                format_axis(plot_axis)
 
-                if track.properties['overlay_previous'] == 'share-y':
-                    ylim = plot_axes[1 + i].get_ylim()
+                binsize = track.hic_ma.getBinSize()
+                n_region_bins = sum([end - start for _, start, end in plot_regions]) // binsize
+                hi = track.SPACERBINWIDTH * (len(plot_regions) - 1) + n_region_bins
+                set_xlim(plot_axis, 0, hi, decreasing_x_axis)
+                track.plot(plot_axis, plot_regions)
 
-                else:
-                    idx -= skipped_tracks
-                    plot_axis = axisartist.Subplot(fig, grids[idx, 1 + i])
-                    plot_axes.append(plot_axis)
-                    fig.add_subplot(plot_axis)
-                    # turns off the lines around the tracks
-                    plot_axis.axis[:].set_visible(False)
-                    # to make the background transparent
-                    plot_axis.patch.set_visible(False)
+            else:
+                for i, (chrom, start, end) in enumerate(plot_regions):
+                    log.info(f"plotting {chrom}:{start}-{end} for {track.properties['section_name']}")
 
-                if decreasing_x_axis:
-                    plot_axis.set_xlim(end, start)
-                else:
-                    plot_axis.set_xlim(start, end)
+                    if track.properties['overlay_previous'] == 'share-y':
+                        ylim = plot_axes[1 + i].get_ylim()
 
-                track.plot(plot_axis, chrom, start, end)
+                    else:
+                        idx -= skipped_tracks
+                        plot_axis = axisartist.Subplot(fig, grids[idx, 1 + i])
+                        plot_axes.append(plot_axis)
+                        fig.add_subplot(plot_axis)
+                        format_axis(plot_axis)
 
-                if track.properties['overlay_previous'] == 'share-y':
-                    plot_axis.set_ylim(ylim)
+                    if track.properties['file_type'] == 'hic_matrix':
+                        binsize = track.hic_ma.getBinSize()
+                        set_xlim(plot_axis, 0, (end - start) // binsize, decreasing_x_axis)
+                        track.plot(plot_axis, [(chrom, start, end)])
+
+                    else:
+                        set_xlim(plot_axis, start, end, decreasing_x_axis)
+                        track.plot(plot_axis, chrom, start, end)
+
+                    if track.properties['overlay_previous'] == 'share-y':
+                        plot_axis.set_ylim(ylim)
 
             if not overlay:
                 y_axis = plt.subplot(grids[idx, 0])

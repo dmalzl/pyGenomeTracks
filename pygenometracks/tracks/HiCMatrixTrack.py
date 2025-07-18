@@ -24,14 +24,88 @@ file_type = {TRACK_TYPE}
                                **HiCMatrixLikeTrack.DEFAULTS_PROPERTIES)
     INTEGER_PROPERTIES = dict({'depth': [1, np.inf]},
                               **HiCMatrixLikeTrack.INTEGER_PROPERTIES)
+    
+    SPACERBINWIDTH = 0.5
     # The colormap can only be a colormap
 
-    def plot(self, ax, chrom_region, region_start, region_end):
+    # spacer bins need to be adjusted by binsize
+    def init_view_matrix(self, plot_regions):
+        nbins = 0
+        binsize = self.hic_ma.getBinSize()
+        for _, start, end in plot_regions:
+            nbins += (end - start) // binsize
 
-        continue_plotting, chrom_region = self.check_before_plotting(chrom_region, region_start, region_end)
-        if not continue_plotting:
-            return
+        nbins += len(plot_regions) - 1
+        view_matrix = np.empty((nbins, nbins))
+        view_matrix[:] = np.nan
+
+        return view_matrix
+
+    def get_view_matrix(self, plot_regions):
+        view_matrix = self.init_view_matrix(plot_regions)
+        view_idx = 0
+        depth_in_bp = 0
+        start_pos_vec = []
+        hic_mat_idx = []
+        for nspacer, (chrom_region, region_start, region_end) in enumerate(plot_regions):
+            continue_plotting, chrom_region = self.check_before_plotting(chrom_region, region_start, region_end)
+            if not continue_plotting:
+                raise Exception('problems with input data. please check logs')
+            
+            start_bp = region_start
+            end_bp = region_end
+            idx = [idx for idx, x in enumerate(self.hic_ma.cut_intervals)
+                if x[0] == chrom_region and x[1] >= start_bp and x[2] <= end_bp]
+            
+            if len(idx) == 0:
+                self.log.warning("*Warning*\nThere is no data for the region "
+                                "considered on the matrix. "
+                                "This will generate an empty track!!\n")
+
+                raise Exception(f'Region {chrom_region}:{region_start}-{region_end} too short')
         
+            depth_in_bp += region_end - region_start
+            # select only relevant matrix part
+            view_start = view_idx
+            view_end = view_idx + len(idx)
+
+            cis_matrix = np.array(
+                self.hic_ma.matrix[idx, :][:, idx]
+                .todense()
+                .astype(float)
+            )
+            # add one bin as spacer
+            lo = view_start + nspacer
+            hi = view_end + nspacer
+            view_matrix[lo: hi, lo: hi] = cis_matrix
+            start_pos_vec += [i + self.SPACERBINWIDTH * nspacer for i in range(view_start, view_end + 1)]
+
+            if nspacer:
+                # iterating backwards to comply with view_idx
+                tmp_view_start = view_start
+                tmp_nspacer = nspacer
+                for trans_idx in hic_mat_idx[::-1]:
+                    trans_matrix = np.array(
+                        self.hic_ma.matrix[trans_idx, :][:, idx]
+                        .todense()
+                        .astype(float)
+                    )
+                    # this is relative to the previous iteration
+                    # in which view_start = view_end at the end of the iteration
+                    trans_lo = tmp_view_start - len(trans_idx) + tmp_nspacer - 1
+                    trans_hi = tmp_view_start + tmp_nspacer - 1
+                    tmp_nspacer -= 1
+                    view_matrix[trans_lo: trans_hi, lo: hi] = trans_matrix
+
+                    tmp_view_start = tmp_view_start - len(trans_idx)
+
+            view_idx = view_end
+            hic_mat_idx.append(idx)
+
+        depth = depth_in_bp // self.hic_ma.getBinSize() + (len(plot_regions) - 2) * np.sqrt(self.SPACERBINWIDTH**2 * 2)
+        return view_matrix, depth, start_pos_vec
+
+    def plot(self, ax, plot_regions):
         # get rid of this because we actually want the cut for multi region trans contacts
         # expand region to plus depth on both sides
         # to avoid a 45 degree 'cut' on the edges
@@ -42,37 +116,8 @@ file_type = {TRACK_TYPE}
         # chr_end = self.hic_ma.cut_intervals[chr_end_id - 1][2]
         # start_bp = max(chr_start, region_start - self.properties['depth'])
         # end_bp = min(chr_end, region_end + self.properties['depth'])
-        start_bp = region_start
-        end_bp = region_end
-        idx = [idx for idx, x in enumerate(self.hic_ma.cut_intervals)
-               if x[0] == chrom_region and x[1] >= start_bp and x[2] <= end_bp]
-        if len(idx) == 0:
-            self.log.warning("*Warning*\nThere is no data for the region "
-                             "considered on the matrix. "
-                             "This will generate an empty track!!\n")
-            self.img = None
-            return
-        start_pos = [x[1] for i, x in enumerate(self.hic_ma.cut_intervals) if i in idx]
-        # select only relevant matrix part
-        matrix = self.hic_ma.matrix[idx, :][:, idx]
-        # update the start_pos to add the last end:
-        start_pos = tuple(list(start_pos) + [self.hic_ma.cut_intervals[idx[-1]][2]])
-        # limit the 'depth' based on the length of the region being viewed
 
-        region_len = region_end - region_start
-        depth = min(self.properties['depth'], int(region_len * 1.25))
-        # Need to be sure that you keep at least one bin even if the depth is
-        # smaller than the binsize
-        depth_in_bins = max(1, int(1.5 * region_len / self.hic_ma.getBinSize()))
-
-        if depth < self.properties['depth']:
-            log.warning(f"The depth was set to {self.properties['depth']} which is more than 125%"
-                        " of the region plotted. The depth will be set "
-                        f"to {depth}.\n")
-            # remove from matrix all data points that are not visible.
-            matrix = matrix - scipy.sparse.triu(matrix, k=depth_in_bins, format='csr')
-        # Using todense will replace all nan values by 0.
-        matrix = np.asarray(matrix.todense().astype(float))
+        matrix, depth, start_pos_vec = self.get_view_matrix(plot_regions)
 
         matrix = matrix * self.properties['scale_factor']
 
@@ -97,27 +142,27 @@ file_type = {TRACK_TYPE}
         else:
             # try to use a 'aesthetically pleasant' max value
             try:
-                vmax = np.percentile(matrix.diagonal(1), 80)
+                vmax = np.nanpercentile(matrix.diagonal(1), 80)
             except Exception:
                 vmax = None
 
         if self.properties['min_value'] is not None:
             vmin = self.properties['min_value']
         else:
-            if depth_in_bins > matrix.shape[0]:
-                # Make sure you keep one bin
-                depth_in_bins = max(1, matrix.shape[0] - 5)
+            # if depth_in_bins > matrix.shape[0]:
+            #     # Make sure you keep one bin
+            #     depth_in_bins = max(1, matrix.shape[0] - 5)
 
-            # if the region length is large with respect to the chromosome length, the diagonal may have
-            # very few values or none. Thus, the following lines reduce the number of bins until the
-            # diagonal is at least length 5 but make sure you have at least one value:
-            num_bins_from_diagonal = max(1, int(region_len / self.hic_ma.getBinSize()))
-            for num_bins in range(0, num_bins_from_diagonal)[::-1]:
-                distant_diagonal_values = matrix.diagonal(num_bins)
-                if len(distant_diagonal_values) > 5:
-                    break
+            # # if the region length is large with respect to the chromosome length, the diagonal may have
+            # # very few values or none. Thus, the following lines reduce the number of bins until the
+            # # diagonal is at least length 5 but make sure you have at least one value:
+            # num_bins_from_diagonal = max(1, int(region_len / self.hic_ma.getBinSize()))
+            # for num_bins in range(0, num_bins_from_diagonal)[::-1]:
+            #     distant_diagonal_values = matrix.diagonal(num_bins)
+            #     if len(distant_diagonal_values) > 5:
+            #         break
 
-            vmin = np.median(distant_diagonal_values)
+            vmin = np.nanmedian(matrix.diagonal())
 
         self.log.info("setting min, max values for track "
                       f"{self.properties['section_name']} to: "
@@ -128,7 +173,7 @@ file_type = {TRACK_TYPE}
         else:
             self.current_norm = colors.Normalize(vmin=vmin, vmax=vmax)
 
-        self.last_img_plotted = self.pcolormesh_45deg(ax, matrix, start_pos)
+        self.last_img_plotted = self.pcolormesh_45deg(ax, matrix, start_pos_vec)
         if self.properties['rasterize']:
             self.last_img_plotted.set_rasterized(True)
         if self.properties['orientation'] == 'inverted':
