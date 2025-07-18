@@ -570,6 +570,30 @@ class PlotTracks(object):
                 if not property_max:
                     track.properties['max_value'] = track_max
 
+            def make_add_and_format_ax(fig, grids, row, col):
+                plot_axis = axisartist.Subplot(fig, grids[row, col])
+                fig.add_subplot(plot_axis)
+                format_axis(plot_axis)
+                return plot_axis
+
+            if track.properties['file_type'] in ['gtf', 'bed'] and len(plot_regions) > 1:
+                if not overlay:
+                    plot_axes = [make_add_and_format_ax(fig, grids, idx, 1 + i) for i in range(len(plot_regions))]
+
+                max_num_rows = 0
+                for ax, (chrom, start, end) in zip(plot_axes, plot_regions):
+                    num_rows_region = track.plot(ax, chrom, start, end, dry = True)
+                    if num_rows_region > max_num_rows:
+                        max_num_rows = num_rows_region
+                
+                if not overlay:
+                    for ax in plot_axes:
+                        ax.remove()
+
+                    plot_axes = list()
+                
+                track.properties['gene_rows'] = max_num_rows
+                
             if track.properties['file_type'] == 'hic_matrix' and len(plot_regions) > 1:
                 log.info('plotting multi-region hic_matrix track')
                 plot_axis = axisartist.Subplot(fig, grids[idx, 1:-1])
@@ -587,14 +611,13 @@ class PlotTracks(object):
                     log.info(f"plotting {chrom}:{start}-{end} for {track.properties['section_name']}")
 
                     if track.properties['overlay_previous'] == 'share-y':
-                        ylim = plot_axes[1 + i].get_ylim()
+                        plot_axis = plot_axes[1 + i]
+                        ylim = plot_axis.get_ylim()
 
                     else:
                         idx -= skipped_tracks
-                        plot_axis = axisartist.Subplot(fig, grids[idx, 1 + i])
+                        plot_axis = make_add_and_format_ax(fig, grids, idx, 1 + i)
                         plot_axes.append(plot_axis)
-                        fig.add_subplot(plot_axis)
-                        format_axis(plot_axis)
 
                     if track.properties['file_type'] == 'hic_matrix':
                         binsize = track.hic_ma.getBinSize()

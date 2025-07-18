@@ -329,6 +329,7 @@ file_type = {TRACK_TYPE}
                              f"{self.properties['file']}.\n")
 
         return interval_tree, min_score, max_score
+    
 
     def get_max_num_row(self, len_w, small_relative):
         ''' Process the whole bed regions at the given figure length
@@ -399,7 +400,7 @@ file_type = {TRACK_TYPE}
             ypos = free_row * self.row_scale
         return ypos
 
-    def plot(self, ax, chrom_region, start_region, end_region):
+    def plot(self, ax, chrom_region, start_region, end_region, dry = False):
         if chrom_region not in self.interval_tree.keys():
             chrom_region_before = chrom_region
             chrom_region = change_chrom_names(chrom_region)
@@ -433,8 +434,8 @@ file_type = {TRACK_TYPE}
             self.current_small_relative = self.properties['arrowhead_fraction'] * (end_region - start_region)
             if self.properties['labels']:
                 self.current_len_w = get_length_w(ax.get_figure().get_figwidth(),
-                                                  start_region, end_region,
-                                                  self.properties['fontsize'])
+                                                    start_region, end_region,
+                                                    self.properties['fontsize'])
             else:
                 self.current_len_w = 1
 
@@ -476,6 +477,7 @@ file_type = {TRACK_TYPE}
 
             if ax.get_xlim()[0] > ax.get_xlim()[1]:
                 genes_overlap = reversed(genes_overlap)
+            
             for region in genes_overlap:
                 """
                 BED12 gene format with exon locations at the end
@@ -577,6 +579,10 @@ file_type = {TRACK_TYPE}
 
                 if free_row > max_num_row_local:
                     max_num_row_local = free_row
+
+                if dry:
+                    continue
+
                 if ypos > max_ypos:
                     max_ypos = ypos
 
@@ -661,6 +667,9 @@ file_type = {TRACK_TYPE}
             ax.set_ylim(ylims[1], ylims[0])
 
         self.log.debug(f"ylim {ax.get_ylim()}")
+
+        return max_num_row_local
+    
 
     def plot_label(self, label_ax, width_dpi, h_align='left'):
         if h_align == 'left':
