@@ -141,7 +141,6 @@ type = vlines
 
 """
 
-import sys
 import os
 import argparse
 import warnings
@@ -265,6 +264,8 @@ def main(args=None):
                 warnings.warn(f"Invalid value found at line\t{line}\t. {detail}\n")
                 continue
             regions.append((chrom, start, end))
+        
+        regions = sorted(regions)
     else:
         regions = [get_region(args.region)]
 

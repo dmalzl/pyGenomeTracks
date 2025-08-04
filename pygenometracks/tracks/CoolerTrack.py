@@ -25,15 +25,15 @@ file_type = {TRACK_TYPE}
     INTEGER_PROPERTIES = dict({'depth': [1, np.inf]},
                               **CoolerLikeTrack.INTEGER_PROPERTIES)
     
-    SPACERBINWIDTH = 0.5
+    SPACERBINWIDTH = 0.1
     # The colormap can only be a colormap
 
     # spacer bins need to be adjusted by binsize
     def init_view_matrix(self, plot_regions):
         nbins = 0
-        binsize = self.clr.binsize
-        for _, start, end in plot_regions:
-            nbins += (end - start) // binsize
+        for chrom, start, end in plot_regions:
+            lo, hi = self.clr.extent((chrom, start, end))
+            nbins += hi - lo
 
         nbins += len(plot_regions) - 1
         view_matrix = np.empty((nbins, nbins))
@@ -61,7 +61,7 @@ file_type = {TRACK_TYPE}
 
                 raise Exception(f'Region {chrom_region}:{region_start}-{region_end} too short')
         
-            depth_in_bp += region_end - region_start
+            depth_in_bp += extent * self.clr.binsize
             # select only relevant matrix part
             view_start = view_idx
             view_end = view_idx + extent
@@ -72,10 +72,12 @@ file_type = {TRACK_TYPE}
             )
             cis_matrix = matrix_selector[ext_lo: ext_hi, ext_lo: ext_hi]
             # add one bin as spacer
-            lo = view_start + nspacer
-            hi = view_end + nspacer
+            lo = view_start #+ nspacer
+            hi = view_end #+ nspacer
             view_matrix[lo: hi, lo: hi] = cis_matrix
-            start_pos_vec += [i + self.SPACERBINWIDTH * nspacer for i in range(view_start, view_end + 1)]
+            tmp_pos_vec = [i + self.SPACERBINWIDTH * nspacer for i in range(view_start, view_end + 1)]
+            start_pos_vec += tmp_pos_vec
+            # print(lo, hi, hi-lo, tmp_pos_vec[0], tmp_pos_vec[-1], tmp_pos_vec[-1] - tmp_pos_vec[0], len(tmp_pos_vec))
 
             if nspacer:
                 # iterating backwards to comply with view_idx
@@ -135,7 +137,7 @@ file_type = {TRACK_TYPE}
         else:
             # try to use a 'aesthetically pleasant' max value
             try:
-                vmax = np.nanpercentile(matrix.diagonal(1), 70)
+                vmax = np.nanpercentile(matrix.diagonal(1), 80)
             except Exception:
                 vmax = None
 
@@ -149,13 +151,13 @@ file_type = {TRACK_TYPE}
             # # if the region length is large with respect to the chromosome length, the diagonal may have
             # # very few values or none. Thus, the following lines reduce the number of bins until the
             # # diagonal is at least length 5 but make sure you have at least one value:
-            # num_bins_from_diagonal = max(1, int(region_len / self.hic_ma.getBinSize()))
-            # for num_bins in range(0, num_bins_from_diagonal)[::-1]:
-            #     distant_diagonal_values = matrix.diagonal(num_bins)
-            #     if len(distant_diagonal_values) > 5:
-            #         break
+            num_bins_from_diagonal = max(1, int(matrix.shape[0]))
+            for num_bins in range(0, num_bins_from_diagonal)[::-1]:
+                distant_diagonal_values = matrix.diagonal(num_bins)
+                if len(distant_diagonal_values) > 5:
+                    break
 
-            vmin = np.nanpercentile(matrix, 10)
+            vmin = np.nanmedian(distant_diagonal_values)
 
         self.log.info("setting min, max values for track "
                       f"{self.properties['section_name']} to: "

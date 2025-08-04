@@ -594,14 +594,17 @@ class PlotTracks(object):
                 
                 track.properties['gene_rows'] = max_num_rows
                 
-            if track.properties['file_type'] in ['hic_matrix', 'cool_matrix'] and len(plot_regions) > 1:
-                log.info('plotting multi-region hic_matrix track')
+            if track.properties['file_type'] in ['cool_matrix'] and len(plot_regions) > 1:
+                log.info('plotting multi-region cool track')
                 plot_axis = axisartist.Subplot(fig, grids[idx, 1:-1])
                 fig.add_subplot(plot_axis)
                 format_axis(plot_axis)
 
-                binsize = track.hic_ma.getBinSize() if track.properties['file_type'] == 'hic_matrix' else track.clr.binsize
-                n_region_bins = sum([end - start for _, start, end in plot_regions]) // binsize
+                n_region_bins = 0
+                for region in plot_regions:
+                    start, end = track.clr.extent(region)
+                    n_region_bins += end - start
+
                 hi = track.SPACERBINWIDTH * (len(plot_regions) - 1) + n_region_bins
                 set_xlim(plot_axis, 0, hi, decreasing_x_axis)
                 track.plot(plot_axis, plot_regions)
