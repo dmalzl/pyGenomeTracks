@@ -52,7 +52,8 @@ show_masked_bins = false
                            'min_value': None,
                            'rasterize': True,
                            'colormap': DEFAULT_MATRIX_COLORMAP,
-                           'divisive_weights': False}
+                           'divisive_weights': False,
+                           'spacerbinwidth': 0.2}
     NECESSARY_PROPERTIES = ['file']
     SYNONYMOUS_PROPERTIES = {'max_value': {'auto': None},
                              'min_value': {'auto': None}}
@@ -65,7 +66,8 @@ show_masked_bins = false
     FLOAT_PROPERTIES = {'max_value': [- np.inf, np.inf],
                         'min_value': [- np.inf, np.inf],
                         'scale_factor': [- np.inf, np.inf],
-                        'height': [0, np.inf]}
+                        'height': [0, np.inf],
+                        'spacerbinwidth': [0, np.inf]}
     INTEGER_PROPERTIES = {}
     # The colormap can only be a colormap
 

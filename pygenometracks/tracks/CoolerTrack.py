@@ -24,8 +24,6 @@ file_type = {TRACK_TYPE}
                                **CoolerLikeTrack.DEFAULTS_PROPERTIES)
     INTEGER_PROPERTIES = dict({'depth': [1, np.inf]},
                               **CoolerLikeTrack.INTEGER_PROPERTIES)
-    
-    SPACERBINWIDTH = 0.5
     # The colormap can only be a colormap
 
     # spacer bins need to be adjusted by binsize
@@ -75,7 +73,7 @@ file_type = {TRACK_TYPE}
             lo = view_start + nspacer
             hi = view_end + nspacer
             view_matrix[lo: hi, lo: hi] = cis_matrix
-            tmp_pos_vec = [i + self.SPACERBINWIDTH * nspacer for i in range(view_start, view_end + 1)]
+            tmp_pos_vec = [i + self.properties['spacerbinwidth'] * nspacer for i in range(view_start, view_end + 1)]
             start_pos_vec += tmp_pos_vec
             # print(lo, hi, hi-lo, tmp_pos_vec[0], tmp_pos_vec[-1], tmp_pos_vec[-1] - tmp_pos_vec[0], len(tmp_pos_vec))
 
@@ -98,7 +96,7 @@ file_type = {TRACK_TYPE}
             view_idx = view_end
             clr_extents.append((ext_lo, ext_hi))
 
-        depth = depth_in_bp // self.clr.binsize + (len(plot_regions) - 2) * np.sqrt(self.SPACERBINWIDTH**2 * 2)
+        depth = depth_in_bp // self.clr.binsize + (len(plot_regions) - 2) * np.sqrt(self.properties['spacerbinwidth']**2 * 2)
         return view_matrix, depth, start_pos_vec
 
     def plot(self, ax, plot_regions):

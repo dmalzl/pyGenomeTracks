@@ -623,7 +623,7 @@ class PlotTracks(object):
                     start, end = track.clr.extent(region)
                     n_region_bins += end - start
 
-                hi = track.SPACERBINWIDTH * (len(plot_regions) - 1) + n_region_bins
+                hi = track.properties['spacerbinwidth'] * (len(plot_regions) - 1) + n_region_bins
                 set_xlim(plot_axis, 0, hi, decreasing_x_axis)
                 track.plot(plot_axis, plot_regions)
 
