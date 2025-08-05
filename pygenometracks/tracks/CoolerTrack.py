@@ -25,7 +25,7 @@ file_type = {TRACK_TYPE}
     INTEGER_PROPERTIES = dict({'depth': [1, np.inf]},
                               **CoolerLikeTrack.INTEGER_PROPERTIES)
     
-    SPACERBINWIDTH = 0.1
+    SPACERBINWIDTH = 0.5
     # The colormap can only be a colormap
 
     # spacer bins need to be adjusted by binsize
@@ -72,8 +72,8 @@ file_type = {TRACK_TYPE}
             )
             cis_matrix = matrix_selector[ext_lo: ext_hi, ext_lo: ext_hi]
             # add one bin as spacer
-            lo = view_start #+ nspacer
-            hi = view_end #+ nspacer
+            lo = view_start + nspacer
+            hi = view_end + nspacer
             view_matrix[lo: hi, lo: hi] = cis_matrix
             tmp_pos_vec = [i + self.SPACERBINWIDTH * nspacer for i in range(view_start, view_end + 1)]
             start_pos_vec += tmp_pos_vec

@@ -480,10 +480,28 @@ class PlotTracks(object):
             lengths.append(end - start)
         
         return [total_width * length / sum(lengths) for length in lengths]
+    
+
+    def adjust_plot_regions_to_cooler(self, regions):
+        cool_track = None
+        for track in self.track_obj_list:
+            if track.properties['file_type'] == 'cool_matrix':
+                cool_track = track
+
+        adjust_regions = []
+        for region in regions:
+            lo, hi = cool_track.clr.extent(region)
+            bins = cool_track.clr.bins()[lo: hi]
+            adjust_regions.append((region[0], bins.loc[lo, 'start'], bins.loc[hi - 1, 'end']))
+
+        return adjust_regions
+    
         
     def plot(self, file_name, plot_regions, title=None,
              h_align_titles='left', decreasing_x_axis=False):
         
+        plot_regions = self.adjust_plot_regions_to_cooler(plot_regions)
+
         track_height = self.get_tracks_height(plot_regions)
 
         if self.fig_height:
